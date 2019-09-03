@@ -106,3 +106,5 @@ venv.bak/
 # my extra stuff
 activate_venv.bat
 perlin-noise-2d-terrain-generation/.idea/
+.idea/
+*.json

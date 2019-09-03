@@ -32,15 +32,15 @@ class NoiseMap:
     """
     A map of NoiseMapTiles.
     """
-    def __init__(self, width, height, ranges):
+    def __init__(self, width, height, ranges, tiles=[]):
         """
         ranges = the number ranges for the different kinds of tiles
         eg. water 0.1, sand 0.25, etc as a dictionary
         """
-        self.tiles = []
         self.width = width
         self.height = height
         self.ranges = ranges
+        self.tiles = tiles
     
     def append(self, tiles):
         self.tiles += tiles
@@ -83,9 +83,32 @@ class NoiseMap:
         """
         Save the map as JSON to a file.
         """
-        with open(file_name, 'w') as file:
+        with open(file_name, 'w', encoding='utf8') as file:
             json.dump(dict(self), file, indent=4)
             file.close()
+
+    @classmethod
+    def load(cls, file_name) -> 'NoiseMap':
+        """ Load an existing JSON map """
+        with open(file_name, 'r', encoding='utf8') as file:
+            data = json.load(file)
+
+            # parse map info
+            width = data['width']
+            height = data['height']
+
+            # parse tiles
+            #tiles = data['tiles']
+            tiles = [NoiseMapTile(x, y, noise_value) for x, y, noise_value in data['tiles']]
+            #for tile in tiles:
+            #    pass
+
+            # parse noise ranges
+            ranges = [NoiseRange(name, threshhold, termcolor.colored(char)) for name, threshhold, char in data['ranges']]
+
+            file.close()
+
+            return cls(width, height, ranges, tiles)
 
 
 class NoiseRange:
@@ -112,8 +135,9 @@ class NoiseRange:
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Generate a noise map')
+    parser = argparse.ArgumentParser(description='Generate or view a noise map')
     
+    parser.add_argument('-v', '--view', help="Display an existing map.", type=str)
     parser.add_argument('-f', '--file', help="File name to generate", type=str, default='noise_map_%s.json' % uuid.uuid4())
     parser.add_argument('-o', '--octaves', help="Octaves used for generation.", type=int, default=8)
     parser.add_argument('--width', help="Map width to generate.", type=int, default=164)
@@ -129,43 +153,52 @@ def main():
     parser.add_argument('--hugemountain', help="Height of huge mountains", type=float, default=0.4)
 
     args = parser.parse_args()
-    
-    file = args.file
-    octaves = args.octaves
-    width = args.width
-    height = args.height
-    frequency = args.frequency * octaves
-    algorithm = args.algorithm
-    
-    ranges = [
-        NoiseRange('water', args.water, termcolor.colored('≈', 'blue', 'on_blue', attrs=['dark'])),
-        NoiseRange('shallowwater', args.shallowwater, termcolor.colored('~', 'blue', 'on_blue')),
-        NoiseRange('sand', args.sand, termcolor.colored('.', 'white', 'on_yellow')),
-        NoiseRange('land', args.land, termcolor.colored('.', 'white', 'on_green')),
-        NoiseRange('mountain', args.mountain, termcolor.colored('^', 'grey', 'on_white')),
-        NoiseRange('hugemountain', args.hugemountain, termcolor.colored('∆', 'grey', 'on_white'))
-    ]
-    
-    print('file:\t\t%s\noctaves:\t%s\nwidth:\t\t%d\nheight:\t\t%d\nfrequency:\t%f (octaves * '
-          'frequency)\nalgorithm:\t%s\n' % (file, octaves, width, height, frequency, algorithm))
 
-    noise_map = NoiseMap(width, height, ranges)
+    noise_map = None
+
+    if args.view is not None:
+        # load existing
+        noise_map = NoiseMap.load(args.view)
+        noise_map.display()
+
+    else:
+        # generate
+        file = args.file
+        octaves = args.octaves
+        width = args.width
+        height = args.height
+        frequency = args.frequency * octaves
+        algorithm = args.algorithm
+        
+        ranges = [
+            NoiseRange('water', args.water, termcolor.colored('≈', 'blue', 'on_blue', attrs=['dark'])),
+            NoiseRange('shallowwater', args.shallowwater, termcolor.colored('~', 'blue', 'on_blue')),
+            NoiseRange('sand', args.sand, termcolor.colored('.', 'white', 'on_yellow')),
+            NoiseRange('land', args.land, termcolor.colored('.', 'white', 'on_green')),
+            NoiseRange('mountain', args.mountain, termcolor.colored('^', 'grey', 'on_white')),
+            NoiseRange('hugemountain', args.hugemountain, termcolor.colored('∆', 'grey', 'on_white'))
+        ]
+        
+        print('file:\t\t%s\noctaves:\t%s\nwidth:\t\t%d\nheight:\t\t%d\nfrequency:\t%f (octaves * '
+              'frequency)\nalgorithm:\t%s\n' % (file, octaves, width, height, frequency, algorithm))
+
+        noise_map = NoiseMap(width, height, ranges)
+        
+        for y in range(height):
+            row = []
+            for x in range(width):
+                noise_value = None
+                if algorithm == 'perlin':
+                    noise_value = pnoise2(x / frequency, y / frequency, octaves)
+                elif algorithm == 'simplex':
+                    noise_value = snoise2(x / frequency, y / frequency, octaves)
+                row += [NoiseMapTile(x, y, noise_value)]
+            noise_map.append(row)
     
-    for y in range(height):
-        row = []
-        for x in range(width):
-            noise_value = None
-            if algorithm == 'perlin':
-                noise_value = pnoise2(x / frequency, y / frequency, octaves)
-            elif algorithm == 'simplex':
-                noise_value = snoise2(x / frequency, y / frequency, octaves)
-            row += [NoiseMapTile(x, y, noise_value)]
-        noise_map.append(row)
-    
-    noise_map.display()
-    
-    if click.confirm('Save map?', default=True):
-        noise_map.save(file)
+        noise_map.display()
+        
+        if click.confirm('Save map?', default=True):
+            noise_map.save(file)
 
 
 if __name__ == "__main__":
