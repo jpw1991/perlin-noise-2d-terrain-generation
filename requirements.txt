@@ -1,0 +1,4 @@
+Click==7.0
+colorama==0.4.1
+noise==1.2.2
+termcolor==1.1.0

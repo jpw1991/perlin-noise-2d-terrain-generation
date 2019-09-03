@@ -102,3 +102,7 @@ venv.bak/
 
 # mypy
 .mypy_cache/
+
+# my extra stuff
+activate_venv.bat
+perlin-noise-2d-terrain-generation/.idea/
