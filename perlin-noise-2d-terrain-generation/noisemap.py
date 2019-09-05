@@ -26,6 +26,7 @@ class NoiseMapBiome(enum.Enum):
     TROPICAL_RAIN_FOREST = 14       # ♈︎ on_green
     SNOW = 15                       # ∷ on_white
     TAIGA = 16                      # ⨇ on_green
+    SWAMP = 17                      # s on_grey
 
 def get_character(value):
     character = None
@@ -36,31 +37,33 @@ def get_character(value):
     elif value == NoiseMapBiome.BEACH:
         character = termcolor.colored('b', 'grey', 'on_yellow')
     elif value == NoiseMapBiome.SCORCHED:
-        character = termcolor.colored(' ', 'grey', 'on_red')
+        character = termcolor.colored('S', 'grey', 'on_red')
     elif value == NoiseMapBiome.BARE:
-        character = termcolor.colored(' ', 'grey', 'on_grey')
+        character = termcolor.colored('B', 'grey', 'on_grey')
     elif value == NoiseMapBiome.TUNDRA:
         character = termcolor.colored('t', 'white', 'on_grey')
     elif value == NoiseMapBiome.TEMPERATE_DESERT:
         character = termcolor.colored('d', 'grey', 'on_yellow')
     elif value == NoiseMapBiome.SHRUBLAND:
-        character = termcolor.colored('s', 'grey', 'on_green')
+        character = termcolor.colored('s', 'green', 'on_grey')
     elif value == NoiseMapBiome.GRASSLAND:
         character = termcolor.colored(' ', 'grey', 'on_green')
     elif value == NoiseMapBiome.TEMPERATE_DECIDUOUS_FOREST:
-        character = termcolor.colored(chr(2263), 'white', 'on_green')#f'♧', 'white', 'on_green')
+        character = termcolor.colored('f', 'grey', 'on_green')#f'♧', 'white', 'on_green')
     elif value == NoiseMapBiome.TEMPERATE_RAIN_FOREST:
-        character = termcolor.colored('r', 'white', 'on_green')
+        character = termcolor.colored('r', 'grey', 'on_green')
     elif value == NoiseMapBiome.SUBTROPICAL_DESERT:
-        character = termcolor.colored(' ', 'white', 'on_yellow')
+        character = termcolor.colored('D', 'white', 'on_yellow')
     elif value == NoiseMapBiome.TROPICAL_SEASONAL_FOREST:
-        character = termcolor.colored('f', 'grey', 'on_green')
+        character = termcolor.colored('F', 'grey', 'on_green')
     elif value == NoiseMapBiome.TROPICAL_RAIN_FOREST:
-        character = termcolor.colored('f', 'cyan', 'on_green')
+        character = termcolor.colored('R', 'grey', 'on_green')
     elif value == NoiseMapBiome.SNOW:
         character = termcolor.colored('s', 'grey', 'on_white')
     elif value == NoiseMapBiome.TAIGA:
         character = termcolor.colored('i', 'grey', 'on_green')
+    elif value == NoiseMapBiome.SWAMP:
+        character = termcolor.colored('s', 'white', 'on_grey')
     return character
 
 
@@ -80,7 +83,7 @@ class NoiseMap:
         self.tiles = tiles
         self.moisture_map = moisture_map
         self.algorithm = None
-        self.frequency = None
+        self.scale = None
         self.octaves = None
 
         # create a dictionary from the noise ranges list for quick lookups later
@@ -88,10 +91,19 @@ class NoiseMap:
         for noise_range in noise_ranges:
             self.noise_range_dict[noise_range.name] = noise_range
 
-    def generate(self, algorithm, frequency, octaves):
-        """ Generate the noise map """
+    def generate(self, algorithm, scale, octaves, persistence=0.5, lacunarity=2.0):
+        """
+        Generates the noise map.
+
+        :param algorithm: use simplex or perlin algorithms
+        :param scale: it's the scale of the map. Higher = zoomed in, lower = zoomed out.
+        :param octaves: the level of detail. Lower = more peaks and valleys, higher = less peaks and valleys.
+        :param persistence: how much an octave contributes to overall shape (adjusts amplitude).
+        :param lacunarity: the level of detail on each octave (adjusts frequency).
+        :return: None
+        """
         self.algorithm = algorithm
-        self.frequency = frequency
+        self.scale = scale
         self.octaves = octaves
 
         self.tiles = []
@@ -100,70 +112,54 @@ class NoiseMap:
             for x in range(self.width):
                 noise_value = None
                 if algorithm == 'perlin':
-                    noise_value = pnoise2(x / frequency, y / frequency, octaves)
+                    noise_value = pnoise2(x=x/scale, y=y/scale, octaves=octaves,
+                                          persistence=persistence, lacunarity=lacunarity)
                 elif algorithm == 'simplex':
-                    noise_value = snoise2(x / frequency, y / frequency, octaves)
+                    noise_value = snoise2(x=x/scale, y=y/scale, octaves=octaves,
+                                          persistence=persistence, lacunarity=lacunarity)
                 row += [NoiseMapTile(x, y, noise_value)]
             self.tiles += row
 
     def biome(self, elevation, moisture):
-        """ From the elevation & the moisture, determine the biome of the tile. """
-        # if elevation <= self.noise_range_dict['water'].threshold or elevation <= self.noise_range_dict['shallowwater'].threshold:
-        #    return NoiseMapBiome.OCEAN
-        # if elevation <= self.noise_range_dict['sand'].threshold:
-        #    return NoiseMapBiome.BEACH
-        #
-        #if elevation > self.noise_range_dict['hugemountain'].threshold:
-        #    if moisture < 0.1:
-        #        return NoiseMapBiome.SCORCHED
-        #    elif moisture < 0.2:
-        #        return NoiseMapBiome.BARE
-        #    elif moisture < 0.5:
-        #        return NoiseMapBiome.TUNDRA
-        #    return NoiseMapBiome.SNOW
-        #
-        #if elevation > self.noise_range_dict['mountain'].threshold:
-        #    if moisture < 0.33:
-        #        return NoiseMapBiome.TEMPERATE_DESERT
-        #    elif moisture < 0.66:
-        #        return NoiseMapBiome.SHRUBLAND
-        #    return NoiseMapBiome.TAIGA
-
-        if elevation >= self.noise_range_dict['mountain'].threshold:
-            return None # don't handle it
-
-        if elevation >= self.noise_range_dict['land'].threshold and elevation < self.noise_range_dict['mountain'].threshold:
-            if moisture < 0.06:#0.16:
-                return NoiseMapBiome.TEMPERATE_DESERT
-            elif moisture < 0.2:
-                return NoiseMapBiome.GRASSLAND
-            elif moisture < 0.4:
-                return NoiseMapBiome.TEMPERATE_DECIDUOUS_FOREST
-            return NoiseMapBiome.TEMPERATE_RAIN_FOREST
-
-        if elevation >= self.noise_range_dict['sand'].threshold:
-            return NoiseMapBiome.BEACH
-
-        if elevation >= self.noise_range_dict['shallowwater'].threshold:
+        if elevation <= self.noise_range_dict['water'].threshold:
+           return NoiseMapBiome.OCEAN
+        if elevation <= self.noise_range_dict['shallowwater'].threshold:
             return NoiseMapBiome.SHALLOWS
+        if elevation <= self.noise_range_dict['sand'].threshold:
+           return NoiseMapBiome.BEACH
 
-        #if elevation < self.noise_range_dict['shallowwater'].threshold:
-        return NoiseMapBiome.OCEAN
+        if elevation > self.noise_range_dict['hugemountain'].threshold:
+            #return None
+            if moisture < 0.1:
+                return NoiseMapBiome.SCORCHED
+            elif moisture < 0.2:
+                return NoiseMapBiome.BARE
+            elif moisture < 0.5:
+                return NoiseMapBiome.TUNDRA
+            return NoiseMapBiome.SNOW
 
-        #if moisture < 0.16:
-        #    return NoiseMapBiome.SUBTROPICAL_DESERT
-        #if moisture < 0.33:
-        #    return NoiseMapBiome.GRASSLAND
-        #if moisture < 0.66:
-        #    return NoiseMapBiome.TROPICAL_SEASONAL_FOREST
-        #return NoiseMapBiome.TROPICAL_RAIN_FOREST
+        if elevation > self.noise_range_dict['mountain'].threshold:
+            #return None
+            if moisture < 0.33:
+                return NoiseMapBiome.TEMPERATE_DESERT
+            elif moisture < 0.66:
+                return NoiseMapBiome.SHRUBLAND
+            return NoiseMapBiome.TAIGA
+
+        if moisture < 0.16:
+           return NoiseMapBiome.SUBTROPICAL_DESERT
+        if moisture < 0.33:
+           return NoiseMapBiome.GRASSLAND
+        if moisture < 0.66:
+           return NoiseMapBiome.TROPICAL_SEASONAL_FOREST
+        return NoiseMapBiome.TROPICAL_RAIN_FOREST
 
     def __iter__(self):
         """ Yields a dictionary when dict() is called for serializing to JSON """
         yield 'width', self.width
         yield 'height', self.height
         yield 'algorithm', self.algorithm
-        yield 'frequency', self.frequency
+        yield 'scale', self.scale
         yield 'octaves', self.octaves
         yield 'noise_ranges', [dict(noise_range) for noise_range in self.noise_ranges]
         yield 'tiles', [dict(tile) for tile in self.tiles]
@@ -181,6 +177,15 @@ class NoiseMap:
                 yield target_list[i:i + chunk_size]
 
         colorama.init()
+
+        # print the map key/legend so we know what we're looking at
+        keys = [str(key)[14:]+'='+get_character(key) for key in NoiseMapBiome]
+        key_rows = chunks(keys, 5)
+        for key_row in key_rows:
+            line = ''
+            for key in key_row:
+                line += '{:<50}'.format(key)
+            print(line)
 
         # break the tiles into lines and print each tile with its range character
         tile_index = 0
@@ -224,11 +229,8 @@ class NoiseMap:
             file.close()
 
     @classmethod
-    def load(cls, file_name) -> 'NoiseMap':
-        """ Load an existing JSON map """
-        with open(file_name, 'r', encoding='utf8') as file:
-            data = json.load(file)
-
+    def load(cls, data) -> 'NoiseMap':
+        if data is not None:
             # parse map info
             width = data['width']
             height = data['height']
@@ -237,9 +239,13 @@ class NoiseMap:
             tiles = [NoiseMapTile(tile['x'], tile['y'], tile['noise_value']) for tile in data['tiles']]
 
             # parse noise ranges
-            noise_ranges = [NoiseRange(noise_range['name'], noise_range['threshold'], termcolor.colored(noise_range['character']))
-                            for noise_range in data['noise_ranges']]
+            noise_ranges = [
+                NoiseRange(noise_range['name'], noise_range['threshold'], termcolor.colored(noise_range['character']))
+                for noise_range in data['noise_ranges']]
 
-            file.close()
+            # parse moisture map
+            moisture_map = None
+            if 'moisture_map' in data:
+                moisture_map = NoiseMap.load(data['moisture_map'])
 
-            return cls(width, height, noise_ranges, tiles)
+            return cls(width, height, noise_ranges, tiles, moisture_map)

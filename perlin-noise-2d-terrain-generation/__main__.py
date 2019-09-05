@@ -4,6 +4,7 @@ import os
 import argparse
 import termcolor
 import click
+import json
 
 from noisemap import NoiseMap
 from noiserange import NoiseRange
@@ -13,6 +14,11 @@ def main():
     """
     python perlin-noise-2d-terrain-generator --algorithm simplex --water 0.00 --shallowwater 0.01 --mountain 0.5 --hugemountain 0.6 --land 0.4
     --algorithm simplex --hugemountain 0.5 --mountain 0.4 --land 0.0 --sand -0.1 --shallowwater -1.0 --water -2.0
+
+    Nice island map: --algorithm perlin --octaves 8 --width 325 --height 64 --water 0.02 --shallowwater 0.05 --sand 0.1 --land 0.25 --mountain 0.3 --hugemountain 0.4
+
+    Nice coastline: python perlin-noise-2d-terrain-generator --width 325 --height 85 --persistence 0.3
+    Nicer coastline: python perlin-noise-2d-terrain-generator --width 325 --height 85 --persistence 0.4
     """
     parser = argparse.ArgumentParser(description='Generate or view a noise map')
     
@@ -21,34 +27,44 @@ def main():
     parser.add_argument('-o', '--octaves', help="Octaves used for generation.", type=int, default=8)
     parser.add_argument('--width', help="Map width to generate.", type=int, default=164)
     parser.add_argument('--height', help="Map height to generate.", type=int, default=32)
-    parser.add_argument('--frequency', help="Noise frequency.", type=float, default=4.0)
+    parser.add_argument('--scale', help="Higher=zoomed in, Lower=zoomed out.", type=float, default=100)
     parser.add_argument('--algorithm', choices=['perlin', 'simplex'], help="Noise algorithm.", type=str, default='simplex')
-    
-    parser.add_argument('--water', help="Height level of the water", type=float, default=-1.0)
-    parser.add_argument('--shallowwater', help="Height level of the shallow water", type=float, default=-0.3)
-    parser.add_argument('--sand', help="Height level of the sand", type=float, default=-0.1)
-    parser.add_argument('--land', help="Height of normal grass/land/forest", type=float, default=0.0)
-    parser.add_argument('--mountain', help="Height of mountains", type=float, default=0.4)
-    parser.add_argument('--hugemountain', help="Height of huge mountains", type=float, default=0.5)
+    parser.add_argument('--persistence', help="how much an octave contributes to overall shape (adjusts amplitude).",
+                        type=float, default=0.3)
+    parser.add_argument('--lacunarity', help="The level of detail on each octave (adjusts frequency).", type=float,
+                        default=3.0)
 
-    parser.add_argument('--moisturea', help="Moisture algorithm for determining map moisture", type=str, default='simplex')
-    parser.add_argument('--moistureo', help="Moisture octaves for determining map moisture", type=int, default=8)
-    parser.add_argument('--moisturef', help="Moisture frequency for determining map moisture", type=float, default=4)
+    parser.add_argument('--water', help="Height level of the water", type=float, default=0.0)
+    parser.add_argument('--shallowwater', help="Height level of the shallow water", type=float, default=0.05)
+    parser.add_argument('--sand', help="Height level of the sand", type=float, default=0.1)
+    parser.add_argument('--land', help="Height of normal grass/land/forest", type=float, default=0.15)
+    parser.add_argument('--mountain', help="Height of mountains", type=float, default=0.5)
+    parser.add_argument('--hugemountain', help="Height of huge mountains", type=float, default=0.6)
+
+    parser.add_argument('--moisturea', help="Moisture algorithm.", type=str, default='simplex')
+    parser.add_argument('--moistureo', help="Moisture octaves.", type=int, default=8)
+    parser.add_argument('--moistures', help="Moisture scale.", type=float, default=100)
+    parser.add_argument('--moisturep', help="Moisture persistence.", type=float, default=0.3)
+    parser.add_argument('--moisturel', help="Moisture lacunarity.", type=float, default=3.0)
 
     args = parser.parse_args()
 
     if args.view is not None:
         # load existing
-        noise_map = NoiseMap.load(args.view)
+        with open(args.view, 'r', encoding='utf8') as file:
+            data = json.load(file)
+            noise_map = NoiseMap.load(data)
+            file.close()
 
-        print('file:\t\t%s' % args.view)
+            print('file:\t\t%s' % args.view)
 
-        noise_map.display()
+            noise_map.display()
 
     else:
+
         # generate
-        frequency = args.frequency * args.octaves
-        moisture_frequency = args.moisturef * args.moistureo
+        scale = args.scale#frequency = args.frequency * args.octaves
+        moisture_scale = args.moistures#moisture_frequency = args.moisturef * args.moistureo
 
         noise_ranges = [
             NoiseRange('hugemountain', args.hugemountain, termcolor.colored('∆', 'grey', 'on_white')),
@@ -58,22 +74,14 @@ def main():
             NoiseRange('shallowwater', args.shallowwater, termcolor.colored('~', 'blue', 'on_blue')),
             NoiseRange('water', args.water, termcolor.colored('≈', 'blue', 'on_blue', attrs=['dark'])),
         ]
-        
-        print('octaves:\t%s\n'
-              'width:\t\t%d\n'
-              'height:\t\t%d\n'
-              'frequency:\t%f (%d * %f)\n'
-              'algorithm:\t%s\n' % (args.octaves, args.width, args.height,
-                                    frequency, args.octaves, args.frequency,
-                                    args.algorithm))
 
         # generate terrain
         noise_map = NoiseMap(args.width, args.height, noise_ranges)
-        noise_map.generate(args.algorithm, frequency, args.octaves)
+        noise_map.generate(args.algorithm, scale, args.octaves, args.persistence, args.lacunarity)
 
         # generate moisture
         moisture_map = NoiseMap(args.width, args.height)
-        moisture_map.generate(args.moisturea, moisture_frequency, args.moistureo)
+        moisture_map.generate(args.moisturea, moisture_scale, args.moistureo, args.moisturep, args.moisturel)
 
         noise_map.moisture_map = moisture_map
 
