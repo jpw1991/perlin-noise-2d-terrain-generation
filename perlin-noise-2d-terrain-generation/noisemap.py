@@ -4,6 +4,7 @@ import json
 import termcolor
 import enum
 
+from PIL import Image
 from noise import pnoise2, snoise2
 from noisemaptile import NoiseMapTile
 from noiserange import NoiseRange
@@ -129,7 +130,6 @@ class NoiseMap:
            return NoiseMapBiome.BEACH
 
         if elevation > self.noise_range_dict['hugemountain'].threshold:
-            #return None
             if moisture < 0.1:
                 return NoiseMapBiome.SCORCHED
             elif moisture < 0.2:
@@ -139,7 +139,6 @@ class NoiseMap:
             return NoiseMapBiome.SNOW
 
         if elevation > self.noise_range_dict['mountain'].threshold:
-            #return None
             if moisture < 0.33:
                 return NoiseMapBiome.TEMPERATE_DESERT
             elif moisture < 0.66:
@@ -165,6 +164,59 @@ class NoiseMap:
         yield 'tiles', [dict(tile) for tile in self.tiles]
         if self.moisture_map is not None:
             yield 'moisture_map', dict(self.moisture_map)
+
+    def display_as_image(self, image_width=800, image_height=600):
+
+        def get_biome_color(value):
+            if value == NoiseMapBiome.OCEAN:
+                return (54, 62, 150) # dark blue
+            elif value == NoiseMapBiome.SHALLOWS:
+                return (88, 205, 237) # cyan
+            elif value == NoiseMapBiome.BEACH:
+                return (247, 247, 119) # yellow
+            elif value == NoiseMapBiome.SCORCHED:
+                return (247, 149, 119) # peach
+            elif value == NoiseMapBiome.BARE:
+                return (168, 166, 165) # grey
+            elif value == NoiseMapBiome.TUNDRA:
+                return (132, 173, 158) # grey green
+            elif value == NoiseMapBiome.TEMPERATE_DESERT:
+                return (227, 155, 0) # orange
+            elif value == NoiseMapBiome.SHRUBLAND:
+                return (62, 110, 58) # olive
+            elif value == NoiseMapBiome.GRASSLAND:
+                return (55, 181, 43) # green
+            elif value == NoiseMapBiome.TEMPERATE_DECIDUOUS_FOREST:
+                return (62, 138, 55) # darker green
+            elif value == NoiseMapBiome.TEMPERATE_RAIN_FOREST:
+                return (161, 38, 255) # violet
+            elif value == NoiseMapBiome.SUBTROPICAL_DESERT:
+                return (201, 255, 38) # fleuro yellow
+            elif value == NoiseMapBiome.TROPICAL_SEASONAL_FOREST:
+                return (143, 80, 109) # musk
+            elif value == NoiseMapBiome.TROPICAL_RAIN_FOREST:
+                return (255, 0, 119) # rose
+            elif value == NoiseMapBiome.SNOW:
+                return (255, 255, 255) # white
+            elif value == NoiseMapBiome.TAIGA:
+                return (62, 87, 71) # dark olive
+            elif value == NoiseMapBiome.SWAMP:
+                return (92, 112, 104) # grey green
+            else:
+                return (0, 0, 0) # black
+
+        image = Image.new('RGBA', size=(self.width, self.height), color=(0, 0, 0))
+
+        for tile_index in range(len(self.tiles)):
+            tile = self.tiles[tile_index]
+            moisture_tile = self.moisture_map.tiles[tile_index]
+            biome_color = get_biome_color(self.biome(tile.noise_value, moisture_tile.noise_value))
+            position = (tile.x, tile.y)
+            image.putpixel(position, biome_color)
+
+        image.show()
+
+
 
     def display(self):
         """ Print the map to the terminal. """
@@ -193,13 +245,6 @@ class NoiseMap:
         for line in lines:
             for tile in line:
                 range_found = False
-                """
-                for noise_range in self.noise_ranges:
-                    if tile.noise_value <= noise_range.threshold:
-                        noise_range.print()
-                        range_found = True
-                        break
-                """
                 for noise_range in self.noise_ranges:
                     if tile.noise_value >= noise_range.threshold:
                         moisture_tile = self.moisture_map.tiles[tile_index]

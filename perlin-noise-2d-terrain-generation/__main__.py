@@ -58,7 +58,7 @@ def main():
 
             print('file:\t\t%s' % args.view)
 
-            noise_map.display()
+            noise_map.display_as_image()
 
     else:
 
@@ -86,7 +86,7 @@ def main():
         noise_map.moisture_map = moisture_map
 
         # display map
-        noise_map.display()
+        noise_map.display_as_image()
         
         if click.confirm('Save map?', default=False):
             # find a free file name
