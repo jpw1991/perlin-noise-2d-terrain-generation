@@ -4,7 +4,7 @@ import json
 import termcolor
 import enum
 
-from PIL import Image
+from PIL import Image, ImageFont, ImageDraw
 from noise import pnoise2, snoise2
 from noisemaptile import NoiseMapTile
 from noiserange import NoiseRange
@@ -68,6 +68,14 @@ def get_character(value):
     return character
 
 
+def chunks(target_list, chunk_size):
+    """
+    Break a big list into smaller lists.
+    """
+    for i in range(0, len(target_list), chunk_size):
+        yield target_list[i:i + chunk_size]
+
+
 class NoiseMap:
     """
     A map of NoiseMapTiles.
@@ -92,7 +100,7 @@ class NoiseMap:
         for noise_range in noise_ranges:
             self.noise_range_dict[noise_range.name] = noise_range
 
-    def generate(self, algorithm, scale, octaves, persistence=0.5, lacunarity=2.0):
+    def generate(self, algorithm, scale, octaves, persistence=0.5, lacunarity=2.0, sink_edges=False):
         """
         Generates the noise map.
 
@@ -101,6 +109,7 @@ class NoiseMap:
         :param octaves: the level of detail. Lower = more peaks and valleys, higher = less peaks and valleys.
         :param persistence: how much an octave contributes to overall shape (adjusts amplitude).
         :param lacunarity: the level of detail on each octave (adjusts frequency).
+        :param sink_edges: Sinks the edges and corners of the map into the ocean to create islands.
         :return: None
         """
         self.algorithm = algorithm
@@ -120,6 +129,23 @@ class NoiseMap:
                                           persistence=persistence, lacunarity=lacunarity)
                 row += [NoiseMapTile(x, y, noise_value)]
             self.tiles += row
+
+        # If sink edges is true, we need to sink the corners & sides of the map into the ocean
+        #
+        # 1. Generate a box that fits inside the map with a small degree of margin.
+        # 2. Generate a circle in its center
+        # 3. Use this circle to cull all tiles that fall outside of it.
+        #  _ _ _ _ _ _
+        # |ooooKKKoooo|
+        # |ooKKKKKKKoo|
+        # |oKKKKKKKKKo|
+        # |ooKKKKKKKoo|
+        # |ooooKKKoooo|
+        #
+        # Something like above, where K is keep and O is ocean. Ok, awful ASCII art. I admit.
+        #
+        # http://mathcentral.uregina.ca/QQ/database/QQ.09.06/s/lori1.html
+        # 1. Find the center tile
 
     def biome(self, elevation, moisture):
         if elevation <= self.noise_range_dict['water'].threshold:
@@ -165,7 +191,7 @@ class NoiseMap:
         if self.moisture_map is not None:
             yield 'moisture_map', dict(self.moisture_map)
 
-    def display_as_image(self, image_width=800, image_height=600):
+    def display_as_image(self, tile_size):
 
         def get_biome_color(value):
             if value == NoiseMapBiome.OCEAN:
@@ -191,7 +217,7 @@ class NoiseMap:
             elif value == NoiseMapBiome.TEMPERATE_RAIN_FOREST:
                 return (161, 38, 255) # violet
             elif value == NoiseMapBiome.SUBTROPICAL_DESERT:
-                return (201, 255, 38) # fleuro yellow
+                return (255, 214, 153) # fleuro yellow
             elif value == NoiseMapBiome.TROPICAL_SEASONAL_FOREST:
                 return (143, 80, 109) # musk
             elif value == NoiseMapBiome.TROPICAL_RAIN_FOREST:
@@ -205,28 +231,42 @@ class NoiseMap:
             else:
                 return (0, 0, 0) # black
 
-        image = Image.new('RGBA', size=(self.width, self.height), color=(0, 0, 0))
+        # add some extra height to the image for the legend
+        legend_height = 200
+        legend_width = 1500
+        image_width = self.width*tile_size
+        if image_width < legend_width:
+            image_width = legend_width
+        image = Image.new('RGBA', size=(image_width, (self.height*tile_size)+legend_height), color=(0, 0, 0))
 
+        d = ImageDraw.Draw(image)
         for tile_index in range(len(self.tiles)):
             tile = self.tiles[tile_index]
             moisture_tile = self.moisture_map.tiles[tile_index]
             biome_color = get_biome_color(self.biome(tile.noise_value, moisture_tile.noise_value))
-            position = (tile.x, tile.y)
-            image.putpixel(position, biome_color)
+            d.rectangle([tile.x*tile_size, tile.y*tile_size, tile.x*tile_size+tile_size, tile.y*tile_size+tile_size], fill=biome_color)
+
+        # print the map legend so we know what we're looking at
+        font_size = 14
+        font = ImageFont.truetype('resources/fonts/JoshuaFont3.pfb', 14)
+        keys = [str(key)[14:] for key in NoiseMapBiome]
+        key_rows = chunks(keys, 5)
+        text_x = 10
+        text_y = (self.height*tile_size) + 10
+        for key_row in key_rows:
+            for key in key_row:
+                # draw color key block
+                d.rectangle([text_x, text_y, text_x + font_size, text_y + font_size], fill=get_biome_color(getattr(NoiseMapBiome, key)))
+                # offset it by 2 char widths due to the color key and equals sign etc
+                d.text((text_x+(font_size*2), text_y), ' = ' + key, font=font, fill=(255, 255, 255,))
+                text_x += font_size * 20
+            text_y += 50
+            text_x = 10
 
         image.show()
 
-
-
     def display(self):
         """ Print the map to the terminal. """
-
-        def chunks(target_list, chunk_size):
-            """
-            Break a big list into smaller lists.
-            """
-            for i in range(0, len(target_list), chunk_size):
-                yield target_list[i:i + chunk_size]
 
         colorama.init()
 

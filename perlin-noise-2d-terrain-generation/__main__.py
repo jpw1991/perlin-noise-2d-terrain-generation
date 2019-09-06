@@ -25,14 +25,15 @@ def main():
     parser.add_argument('-v', '--view', help="Display an existing map.", type=str)
     parser.add_argument('-f', '--file', help="File name to generate", type=str)
     parser.add_argument('-o', '--octaves', help="Octaves used for generation.", type=int, default=8)
-    parser.add_argument('--width', help="Map width to generate.", type=int, default=164)
-    parser.add_argument('--height', help="Map height to generate.", type=int, default=32)
-    parser.add_argument('--scale', help="Higher=zoomed in, Lower=zoomed out.", type=float, default=100)
+    parser.add_argument('--width', help="Map width to generate.", type=int, default=600)
+    parser.add_argument('--height', help="Map height to generate.", type=int, default=200)
+    parser.add_argument('--scale', help="Higher=zoomed in, Lower=zoomed out.", type=float, default=200)
     parser.add_argument('--algorithm', choices=['perlin', 'simplex'], help="Noise algorithm.", type=str, default='simplex')
     parser.add_argument('--persistence', help="how much an octave contributes to overall shape (adjusts amplitude).",
-                        type=float, default=0.3)
+                        type=float, default=0.5)
     parser.add_argument('--lacunarity', help="The level of detail on each octave (adjusts frequency).", type=float,
                         default=3.0)
+    parser.add_argument('--sinkedges', help="Sink the edges of the map into the sea.", type=str)
 
     parser.add_argument('--water', help="Height level of the water", type=float, default=0.0)
     parser.add_argument('--shallowwater', help="Height level of the shallow water", type=float, default=0.05)
@@ -43,9 +44,11 @@ def main():
 
     parser.add_argument('--moisturea', help="Moisture algorithm.", type=str, default='simplex')
     parser.add_argument('--moistureo', help="Moisture octaves.", type=int, default=8)
-    parser.add_argument('--moistures', help="Moisture scale.", type=float, default=100)
-    parser.add_argument('--moisturep', help="Moisture persistence.", type=float, default=0.3)
+    parser.add_argument('--moistures', help="Moisture scale.", type=float, default=200)
+    parser.add_argument('--moisturep', help="Moisture persistence.", type=float, default=0.5)
     parser.add_argument('--moisturel', help="Moisture lacunarity.", type=float, default=3.0)
+
+    parser.add_argument('--tilesize', help="Size in pixels of tiles on the map.", type=int, default=4)
 
     args = parser.parse_args()
 
@@ -58,13 +61,13 @@ def main():
 
             print('file:\t\t%s' % args.view)
 
-            noise_map.display_as_image()
+            noise_map.display_as_image(args.tilesize)
 
     else:
 
         # generate
-        scale = args.scale#frequency = args.frequency * args.octaves
-        moisture_scale = args.moistures#moisture_frequency = args.moisturef * args.moistureo
+        scale = args.scale
+        moisture_scale = args.moistures
 
         noise_ranges = [
             NoiseRange('hugemountain', args.hugemountain, termcolor.colored('∆', 'grey', 'on_white')),
@@ -86,14 +89,16 @@ def main():
         noise_map.moisture_map = moisture_map
 
         # display map
-        noise_map.display_as_image()
+        noise_map.display_as_image(args.tilesize)
         
         if click.confirm('Save map?', default=False):
             # find a free file name
             i = 0
             while os.path.exists('noise_map_%03d.json' % i):
                 i += 1
-            noise_map.save('noise_map_%03d.json' % i)
+            file_name = 'noise_map_%03d.json' % i
+            noise_map.save(file_name)
+            print('Saved to: %s' % file_name)
 
 
 if __name__ == '__main__':
