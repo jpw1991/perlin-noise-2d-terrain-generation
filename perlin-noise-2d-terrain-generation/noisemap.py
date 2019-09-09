@@ -1,7 +1,5 @@
 
-import colorama
 import json
-import termcolor
 import enum
 
 from PIL import Image, ImageFont, ImageDraw
@@ -11,69 +9,23 @@ from noiserange import NoiseRange
 
 
 class NoiseMapBiome(enum.Enum):
-    OCEAN = 1                       # ♒︎ on_blue
-    SHALLOWS = 2                    # ~ on_cyan
-    BEACH = 3                       # ⋯ on_yellow
-    SCORCHED = 4                    # on_red
-    BARE = 5                        # on_grey
-    TUNDRA = 6                      # ⩊ on_grey
-    TEMPERATE_DESERT = 7            #
-    SHRUBLAND = 8                   # ⋎ on_green
-    GRASSLAND = 9                   #   on_green
-    TEMPERATE_DECIDUOUS_FOREST = 10 # ♣︎ on_green
-    TEMPERATE_RAIN_FOREST = 11      # ♈︎ on_green
-    SUBTROPICAL_DESERT = 12         #   on_yellow
-    TROPICAL_SEASONAL_FOREST = 13   # ♠︎ on green
-    TROPICAL_RAIN_FOREST = 14       # ♈︎ on_green
-    SNOW = 15                       # ∷ on_white
-    TAIGA = 16                      # ⨇ on_green
-    SWAMP = 17                      # s on_grey
-
-def get_character(value):
-    character = None
-    if value == NoiseMapBiome.OCEAN:
-        character = termcolor.colored(' ', 'cyan', 'on_blue')
-    elif value == NoiseMapBiome.SHALLOWS:
-        character = termcolor.colored(' ', 'blue', 'on_cyan')
-    elif value == NoiseMapBiome.BEACH:
-        character = termcolor.colored('b', 'grey', 'on_yellow')
-    elif value == NoiseMapBiome.SCORCHED:
-        character = termcolor.colored('S', 'grey', 'on_red')
-    elif value == NoiseMapBiome.BARE:
-        character = termcolor.colored('B', 'grey', 'on_grey')
-    elif value == NoiseMapBiome.TUNDRA:
-        character = termcolor.colored('t', 'white', 'on_grey')
-    elif value == NoiseMapBiome.TEMPERATE_DESERT:
-        character = termcolor.colored('d', 'grey', 'on_yellow')
-    elif value == NoiseMapBiome.SHRUBLAND:
-        character = termcolor.colored('s', 'green', 'on_grey')
-    elif value == NoiseMapBiome.GRASSLAND:
-        character = termcolor.colored(' ', 'grey', 'on_green')
-    elif value == NoiseMapBiome.TEMPERATE_DECIDUOUS_FOREST:
-        character = termcolor.colored('f', 'grey', 'on_green')#f'♧', 'white', 'on_green')
-    elif value == NoiseMapBiome.TEMPERATE_RAIN_FOREST:
-        character = termcolor.colored('r', 'grey', 'on_green')
-    elif value == NoiseMapBiome.SUBTROPICAL_DESERT:
-        character = termcolor.colored('D', 'white', 'on_yellow')
-    elif value == NoiseMapBiome.TROPICAL_SEASONAL_FOREST:
-        character = termcolor.colored('F', 'grey', 'on_green')
-    elif value == NoiseMapBiome.TROPICAL_RAIN_FOREST:
-        character = termcolor.colored('R', 'grey', 'on_green')
-    elif value == NoiseMapBiome.SNOW:
-        character = termcolor.colored('s', 'grey', 'on_white')
-    elif value == NoiseMapBiome.TAIGA:
-        character = termcolor.colored('i', 'grey', 'on_green')
-    elif value == NoiseMapBiome.SWAMP:
-        character = termcolor.colored('s', 'white', 'on_grey')
-    return character
-
-
-def chunks(target_list, chunk_size):
-    """
-    Break a big list into smaller lists.
-    """
-    for i in range(0, len(target_list), chunk_size):
-        yield target_list[i:i + chunk_size]
+    OCEAN = 1
+    SHALLOWS = 2
+    BEACH = 3
+    SCORCHED = 4
+    BARE = 5
+    TUNDRA = 6
+    TEMPERATE_DESERT = 7
+    SHRUBLAND = 8
+    GRASSLAND = 9
+    TEMPERATE_DECIDUOUS_FOREST = 10
+    TEMPERATE_RAIN_FOREST = 11
+    SUBTROPICAL_DESERT = 12
+    TROPICAL_SEASONAL_FOREST = 13
+    TROPICAL_RAIN_FOREST = 14
+    SNOW = 15
+    TAIGA = 16
+    SWAMP = 17
 
 
 class NoiseMap:
@@ -94,6 +46,7 @@ class NoiseMap:
         self.algorithm = None
         self.scale = None
         self.octaves = None
+        self.image = None
 
         # create a dictionary from the noise ranges list for quick lookups later
         self.noise_range_dict = {}
@@ -147,14 +100,25 @@ class NoiseMap:
         # http://mathcentral.uregina.ca/QQ/database/QQ.09.06/s/lori1.html
         # 1. Find the center tile
 
+        # C=PI*d
+        # circumference = 3.14 * diameter
+
     def biome(self, elevation, moisture):
+        """ Determine the biome from the elevation & moisture of the tile """
+
+        """ Water/Shore"""
         if elevation <= self.noise_range_dict['water'].threshold:
-           return NoiseMapBiome.OCEAN
+            return NoiseMapBiome.OCEAN
+
+        if elevation <= self.noise_range_dict['sand'].threshold and moisture >= 0.2:
+            return NoiseMapBiome.SWAMP
+
         if elevation <= self.noise_range_dict['shallowwater'].threshold:
             return NoiseMapBiome.SHALLOWS
         if elevation <= self.noise_range_dict['sand'].threshold:
-           return NoiseMapBiome.BEACH
+            return NoiseMapBiome.BEACH
 
+        """ High mountain """
         if elevation > self.noise_range_dict['hugemountain'].threshold:
             if moisture < 0.1:
                 return NoiseMapBiome.SCORCHED
@@ -164,6 +128,7 @@ class NoiseMap:
                 return NoiseMapBiome.TUNDRA
             return NoiseMapBiome.SNOW
 
+        """ Mountain """
         if elevation > self.noise_range_dict['mountain'].threshold:
             if moisture < 0.33:
                 return NoiseMapBiome.TEMPERATE_DESERT
@@ -171,6 +136,7 @@ class NoiseMap:
                 return NoiseMapBiome.SHRUBLAND
             return NoiseMapBiome.TAIGA
 
+        """ Land """
         if moisture < 0.16:
            return NoiseMapBiome.SUBTROPICAL_DESERT
         if moisture < 0.33:
@@ -192,6 +158,20 @@ class NoiseMap:
             yield 'moisture_map', dict(self.moisture_map)
 
     def display_as_image(self, tile_size):
+        """
+        Display the map as an image.
+
+        :param tile_size: The size of each tile.
+        :return: None
+
+        """
+
+        def chunks(target_list, chunk_size):
+            """
+            Break a big list into smaller lists.
+            """
+            for i in range(0, len(target_list), chunk_size):
+                yield target_list[i:i + chunk_size]
 
         def get_biome_color(value):
             if value == NoiseMapBiome.OCEAN:
@@ -219,7 +199,7 @@ class NoiseMap:
             elif value == NoiseMapBiome.SUBTROPICAL_DESERT:
                 return (255, 214, 153) # fleuro yellow
             elif value == NoiseMapBiome.TROPICAL_SEASONAL_FOREST:
-                return (143, 80, 109) # musk
+                return (102, 153, 0) # some kind of green
             elif value == NoiseMapBiome.TROPICAL_RAIN_FOREST:
                 return (255, 0, 119) # rose
             elif value == NoiseMapBiome.SNOW:
@@ -237,9 +217,9 @@ class NoiseMap:
         image_width = self.width*tile_size
         if image_width < legend_width:
             image_width = legend_width
-        image = Image.new('RGBA', size=(image_width, (self.height*tile_size)+legend_height), color=(0, 0, 0))
+        self.image = Image.new('RGBA', size=(image_width, (self.height*tile_size)+legend_height), color=(0, 0, 0))
 
-        d = ImageDraw.Draw(image)
+        d = ImageDraw.Draw(self.image)
         for tile_index in range(len(self.tiles)):
             tile = self.tiles[tile_index]
             moisture_tile = self.moisture_map.tiles[tile_index]
@@ -263,55 +243,18 @@ class NoiseMap:
             text_y += 50
             text_x = 10
 
-        image.show()
-
-    def display(self):
-        """ Print the map to the terminal. """
-
-        colorama.init()
-
-        # print the map key/legend so we know what we're looking at
-        keys = [str(key)[14:]+'='+get_character(key) for key in NoiseMapBiome]
-        key_rows = chunks(keys, 5)
-        for key_row in key_rows:
-            line = ''
-            for key in key_row:
-                line += '{:<50}'.format(key)
-            print(line)
-
-        # break the tiles into lines and print each tile with its range character
-        tile_index = 0
-        lines = chunks(self.tiles, self.width)
-        for line in lines:
-            for tile in line:
-                range_found = False
-                for noise_range in self.noise_ranges:
-                    if tile.noise_value >= noise_range.threshold:
-                        moisture_tile = self.moisture_map.tiles[tile_index]
-                        biome_character = get_character(self.biome(tile.noise_value, moisture_tile.noise_value))
-                        if biome_character is None:
-                            noise_range.print()
-                        else:
-                            print(biome_character, end='')
-                        range_found = True
-                        break
-
-                # if no range was found, it's < 0 and should probably be water
-                if not range_found:
-                    self.noise_ranges[-1].print()
-
-                # print uncolored black after the last character to stop color run off
-                print('', end='')
-
-                tile_index += 1
-
-            print('')  # print new line to finish with
+        self.image.show()
 
     def save(self, file_name):
         """ Save the map as JSON to a file. """
         with open(file_name, 'w', encoding='utf8') as file:
             json.dump(dict(self), file, indent=4)
             file.close()
+
+    def save_image(self, file_name):
+        """ Save the map image file. """
+        if self.image is not None:
+            self.image.save(file_name)
 
     @classmethod
     def load(cls, data) -> 'NoiseMap':
@@ -325,7 +268,7 @@ class NoiseMap:
 
             # parse noise ranges
             noise_ranges = [
-                NoiseRange(noise_range['name'], noise_range['threshold'], termcolor.colored(noise_range['character']))
+                NoiseRange(noise_range['name'], noise_range['threshold'])
                 for noise_range in data['noise_ranges']]
 
             # parse moisture map

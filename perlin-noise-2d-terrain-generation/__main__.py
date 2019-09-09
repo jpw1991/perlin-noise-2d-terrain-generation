@@ -2,7 +2,6 @@
 import sys
 import os
 import argparse
-import termcolor
 import click
 import json
 
@@ -70,12 +69,12 @@ def main():
         moisture_scale = args.moistures
 
         noise_ranges = [
-            NoiseRange('hugemountain', args.hugemountain, termcolor.colored('∆', 'grey', 'on_white')),
-            NoiseRange('mountain', args.mountain, termcolor.colored('^', 'grey', 'on_white')),
-            NoiseRange('land', args.land, termcolor.colored('.', 'white', 'on_green')),
-            NoiseRange('sand', args.sand, termcolor.colored('.', 'white', 'on_yellow')),
-            NoiseRange('shallowwater', args.shallowwater, termcolor.colored('~', 'blue', 'on_blue')),
-            NoiseRange('water', args.water, termcolor.colored('≈', 'blue', 'on_blue', attrs=['dark'])),
+            NoiseRange('hugemountain', args.hugemountain),
+            NoiseRange('mountain', args.mountain),
+            NoiseRange('land', args.land),
+            NoiseRange('sand', args.sand),
+            NoiseRange('shallowwater', args.shallowwater),
+            NoiseRange('water', args.water),
         ]
 
         # generate terrain
@@ -96,9 +95,10 @@ def main():
             i = 0
             while os.path.exists('noise_map_%03d.json' % i):
                 i += 1
-            file_name = 'noise_map_%03d.json' % i
-            noise_map.save(file_name)
-            print('Saved to: %s' % file_name)
+            file_name = 'noise_map_%03d' % i
+            noise_map.save(file_name+'.json') # save the json file
+            print('Saved to: %s' % file_name+'.json')
+            noise_map.save_image(file_name+'.png') # save the png too
 
 
 if __name__ == '__main__':
